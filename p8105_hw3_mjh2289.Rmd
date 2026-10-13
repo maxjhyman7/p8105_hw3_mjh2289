@@ -12,22 +12,23 @@ library(p8105.datasets)
 library(patchwork)
 ```
 
+##### Set global plotting options
+```{r}
+knitr::opts_chunk$set(  
+  echo = FALSE,   
+  collapse = TRUE,   
+  fig.width = 8,       
+  fig.asp = 0.6,       
+  out.width = "90%",   
+  fig.retina = 2,     
+  dpi = 300
+  ) 
+```
+
 # Problem 1
 ##### The goal is to do some exploration of this dataset. To that end, write a short description of the dataset, noting the size and structure of the data, describing some key variables, and indicating the extent to which missing data is an issue. 
 ```{r}
 data("ny_noaa")
-
-ny_noaa |> 
-  dim()
-
-ny_noaa %>% 
-  summarise(
-    prcp_na_count = sum(is.na(prcp)),
-    snow_na_count = sum(is.na(snow)),
-    snwd_na_count = sum(is.na(snwd)),
-    tmax_na_count = sum(is.na(tmax)),
-    tmin_na_count = sum(is.na(tmin)),
-    )
 ```
 
 The NY NOAA dataset include weather data from all New York state weather stations from January 1, 1981 through December 31, 2020, from the National Oceanic and Atmospheric Association. The dataset include `r nrow(ny_noaa)` daily weather observations and `r ncol(ny_noaa)` variables. Two of the variables serve as identifiers, including a character identifier for the weather station and a date of the daily weather observation at that station. Weather measurements include precipitation (tenths of millimeters), snowfall (millimeters), snow depth (millimeters), maximum temperature (tenths of degrees Celsius), and minimum temperature (tenths of degrees Celsius). While the dataset is tidy in structure, there is extensive missingness among the measurement variables, as each weather station may not had collected all five measurements. Of the `r nrow(ny_noaa)` observations, missingness occurred for `r sum(is.na(pull(ny_noaa, prcp)))` precipitation measurements, `r sum(is.na(pull(ny_noaa, snow)))` snowfall measurements, `r sum(is.na(pull(ny_noaa, snwd)))` snow depth measurements, `r sum(is.na(pull(ny_noaa, tmax)))` maximum temperature measurements, and `r sum(is.na(pull(ny_noaa, tmin)))` minimum temperature measurements. 
@@ -57,7 +58,7 @@ Data cleaning first involved removing any observations in which all five weather
 The most commonly observed values for snowflake, other than missing, were 0 millimeters (n=2008508), 25 millimeters (n=31022), and 13 millimeters (n=23095). Those measurements correspond to approximately 0, 1, and 0.5 inches, respectively, which makes sense as to why they are the most commonly observed.
 
 ##### Make a two-panel plot showing the average max temperature in January and in July in each station across years. Is there any observable / interpretable structure? Any outliers? 
-```{r}
+```{r, message = FALSE}
 ny_noaa_clean |> 
   filter(month == 1 | month == 7,
          !is.na(tmax)) |> 
@@ -126,4 +127,127 @@ tmax_tmin / snowfall
 This two-panel plot illustrates the (1) distribution of minimum and maximum temperature across the entire dataset, and (2) distribution of snowfalls greater than 0 and less than 100 millimeters. For the temperature boxplot, as expected, the distribution of maximum temperature is greater than minimum temperature, with lower- and upper-tail outliers for both. For the snowfalls histogram, the number of snowfalls greater than 0 and less than 100 millimeters was stable around 5000 per year from 1980 to 2006, but since 2006 has increased rapidly, exceeding 10000 in 2010. 
 
 # Problem 2
+
+##### Load, tidy, merge, and otherwise organize the data sets. Your final dataset should include all originally observed variables; exclude participants less than 21 years of age, and those with missing demographic data; and encode data with reasonable variable classes (i.e. not numeric, and using factors with the ordering of tables and plots in mind).
+```{r, message = FALSE}
+nhanes_covar <- read_csv("Data/nhanes_covar.csv", skip = 4) |>
+  janitor::clean_names() |> 
+  mutate(
+    sex = case_when(
+      sex == 1 ~ "Male",
+      sex == 2 ~ "Female"
+      ),
+    education = case_when(
+      education == 1 ~ "Less than high school",
+      education == 2 ~ "High school equivalent",
+      education == 3 ~ "More than high school"
+      ),
+    sex = factor(sex, levels = c("Male", "Female")),
+    education = factor(education, levels = c("Less than high school", 
+                                             "High school equivalent",
+                                             "More than high school"))
+    ) |> 
+  filter(age >= 21, 
+         !is.na(bmi),
+         !is.na(age)
+         )
+
+nhanes_accel <- read_csv("Data/nhanes_accel.csv") |>
+  janitor::clean_names() |> 
+  pivot_longer(
+    min1:min1440,
+    names_to = "minute",
+    names_prefix = "min",
+    values_to = "mims"
+  ) |> 
+  mutate(minute = as.numeric(minute))
+
+nhanes <- inner_join(nhanes_accel, nhanes_covar, by = "seqn") |> 
+  relocate(seqn, sex, age, bmi, education)
+```
+
+ADD DESCRIPTION
+
+##### Produce a reader-friendly table for the number of men and women in each education category, and create a visualization of the age distributions for men and women in each education category. Comment on these items.
+```{r, message = FALSE}
+nhanes |> 
+  select(seqn, sex, education) |> 
+  unique() |> 
+  group_by(sex, education) |>
+  summarize(
+    count = n()
+  ) |> 
+  knitr::kable()
+
+nhanes |> 
+  select(seqn, sex, age, education) |> 
+  unique() |> 
+  ggplot() + 
+  geom_boxplot(mapping = aes(x = age, y = sex)) + 
+  facet_wrap(~education) + 
+  theme_minimal() + 
+  labs(
+    x = "Age (Years)",
+    y = "Sex",
+    title = "Distribution of Age by Sex and Education"
+  )
+```
+
+ADD DESCRIPTION
+
+##### Traditional analyses of accelerometer data focus on the total activity over the day. Using your tidied dataset, aggregate across minutes to create a total activity variable for each participant. Plot these total activities (y-axis) against age (x-axis); your plot should compare men to women and have separate panels for each education level. Include a trend line or a smooth to illustrate differences. Comment on your plot.
+```{r, message = FALSE}
+nhanes |> 
+  group_by(seqn, sex, age, education) |> 
+  summarize(mims_total = sum(mims)) |> 
+  ggplot() + 
+  geom_point(mapping = aes(x = age, y = mims_total, color = sex)) + 
+  geom_smooth(mapping = aes(x = age, y = mims_total, color = sex), se = FALSE) + 
+  facet_wrap(~education) + 
+  theme_minimal() + 
+  labs(
+    x = "Age (Years)",
+    y = "Total Activity (MIMS)",
+    title = "Total Activity by Sex and Education"
+  ) + 
+  theme(
+    legend.position = "top",
+    legend.title = element_blank()
+  )
+```
+
+ADD DESCRIPTION
+
+##### Accelerometer data allows the inspection activity over the course of the day. Make a three-panel plot that shows the 24-hour activity time courses for each education level and use color to indicate sex. Describe in words any patterns or conclusions you can make based on this graph; including smooth trends may help identify differences.
+```{r, message = FALSE}
+nhanes |> 
+  group_by(seqn, sex, age, education) |> 
+  ggplot() + 
+  geom_smooth(mapping = aes(x = minute, y = mims, color = sex), se = FALSE) + 
+  facet_wrap(~education) + 
+  theme_minimal() + 
+  labs(
+    x = "Minutes of Day (0 is Midnight, 1440 is 11:59pm)",
+    y = "Activity (MIMS)",
+    title = "Total Activity by Sex and Education"
+  ) + 
+  theme(
+    legend.position = "top",
+    legend.title = element_blank()
+  )
+```
+
+Add description. Fix x-axis
+
+# Problem 3
+##### Files contain 1% of all rides with a total duration less than 4 hours in each of four months. Import, clean, and tidy these data, and describe the resulting dataset.
+
+##### Produce a reader-friendly table showing the total number of rides in each combination of year and month separating casual riders and Citi Bike members. Comment on these results.
+
+##### Make a table showing the 5 most popular starting stations for July 2024; include the number of rides originating from these stations.
+
+##### Make a plot to investigate the effects of day of the week, month, and year on median ride duration. This plot can include one or more panels, but should facilitate comparison across all variables of interest. Comment on your observations from this plot.
+
+There were relatively few electric Citi Bikes in 2020, but many more are available now. For data in 2024, make a figure that shows the impact of month, membership status, and bike type on the distribution of ride duration. Comment on your results.
+
 
