@@ -15,9 +15,8 @@ library(patchwork)
 ##### Set global plotting options
 ```{r}
 knitr::opts_chunk$set(  
-  echo = FALSE,   
   collapse = TRUE,   
-  fig.width = 8,       
+  fig.width = 10,
   fig.asp = 0.6,       
   out.width = "90%",   
   fig.retina = 2,     
@@ -138,18 +137,18 @@ nhanes_covar <- read_csv("Data/nhanes_covar.csv", skip = 4) |>
       sex == 2 ~ "Female"
       ),
     education = case_when(
-      education == 1 ~ "Less than high school",
-      education == 2 ~ "High school equivalent",
-      education == 3 ~ "More than high school"
+      education == 1 ~ "Less than High School",
+      education == 2 ~ "High School Equivalent",
+      education == 3 ~ "More than High School"
       ),
     sex = factor(sex, levels = c("Male", "Female")),
-    education = factor(education, levels = c("Less than high school", 
-                                             "High school equivalent",
-                                             "More than high school"))
+    education = factor(education, levels = c("Less than High School", 
+                                             "High School Equivalent",
+                                             "More than High School"))
     ) |> 
   filter(age >= 21, 
          !is.na(bmi),
-         !is.na(age)
+         !is.na(education)
          )
 
 nhanes_accel <- read_csv("Data/nhanes_accel.csv") |>
@@ -166,7 +165,7 @@ nhanes <- inner_join(nhanes_accel, nhanes_covar, by = "seqn") |>
   relocate(seqn, sex, age, bmi, education)
 ```
 
-ADD DESCRIPTION
+The clean dataset from the NHANES study combines demographic and accelerometer data for `r length(unique(pull(nhanes, seqn)))` participants. Demographic variables include sex (male, female), age, (years), body mass index, and education level (less than high school, high school equivalent, and more than high school). The accelerometer data are Monitor-Independent Movement Summary unit (MIMS) in each minute of a 24-hour day beginning 12:00am. The `r length(unique(pull(nhanes, seqn)))` participants have `r nrow(nhanes)` MIMS observations. An important step in data cleaning included removing participants younger than 21 or for whom demographic data was missing; only BMI and education level had missingness among demographic variables. 
 
 ##### Produce a reader-friendly table for the number of men and women in each education category, and create a visualization of the age distributions for men and women in each education category. Comment on these items.
 ```{r, message = FALSE}
@@ -177,7 +176,7 @@ nhanes |>
   summarize(
     count = n()
   ) |> 
-  knitr::kable()
+  knitr::kable(col.names = c("Sex", "Education Level", "Count"))
 
 nhanes |> 
   select(seqn, sex, age, education) |> 
@@ -189,11 +188,11 @@ nhanes |>
   labs(
     x = "Age (Years)",
     y = "Sex",
-    title = "Distribution of Age by Sex and Education"
+    title = "Distribution of Age by Sex and Education Level"
   )
 ```
 
-ADD DESCRIPTION
+These exhibits provide the number of participants and their age distribution by sex and education level. Among males, 27 completed less than high school, 35 completed high school or an equivalent, and 56 completed more than high school. Among females, 28 completed less than high school, 23 completed high school or an equivalent, and 59 completed more than high school. Therefore, the most common education was completing more than high school among males and females, comprising approximately one-half of participants of each sex, with the other two education levels comprising approximately one-fourth of participants of each sex. The boxplot visualizes the distribution of age by sex and education. For participants completing less than high school or more than high school, the distribution of age by sex was similar. In contrast, for participants completing high school or an equivalent, the distribution of age was lower for males than females.
 
 ##### Traditional analyses of accelerometer data focus on the total activity over the day. Using your tidied dataset, aggregate across minutes to create a total activity variable for each participant. Plot these total activities (y-axis) against age (x-axis); your plot should compare men to women and have separate panels for each education level. Include a trend line or a smooth to illustrate differences. Comment on your plot.
 ```{r, message = FALSE}
@@ -208,7 +207,7 @@ nhanes |>
   labs(
     x = "Age (Years)",
     y = "Total Activity (MIMS)",
-    title = "Total Activity by Sex and Education"
+    title = "Total Activity by Sex and Education Level"
   ) + 
   theme(
     legend.position = "top",
@@ -216,28 +215,39 @@ nhanes |>
   )
 ```
 
-ADD DESCRIPTION
+This exhibit illustrates the total activity of participants by sex and education level. For each sex and education level, there is a downward trend for total activity with greater age, which is expected considering the effects of aging on mobility. The trajectory of the downward trend varies considerably by sex and education level. For example, the trend is most consistently negative for participants who completed less than high school. Furthermore, the downward trends do not monotonically decrease, with total activity markedly increasing before eventually decreasing for participants who completed high school or an equivalent, especially among females. 
 
 ##### Accelerometer data allows the inspection activity over the course of the day. Make a three-panel plot that shows the 24-hour activity time courses for each education level and use color to indicate sex. Describe in words any patterns or conclusions you can make based on this graph; including smooth trends may help identify differences.
-```{r, message = FALSE}
+```{r, message = FALSE, fig.width = 12}
 nhanes |> 
+  mutate(hours = (minute - 1)/60) |> 
   group_by(seqn, sex, age, education) |> 
   ggplot() + 
-  geom_smooth(mapping = aes(x = minute, y = mims, color = sex), se = FALSE) + 
-  facet_wrap(~education) + 
+  geom_point(mapping = aes(x = hours, y = mims, color = sex), size = 0.1, alpha = 0.07) +
+  geom_smooth(mapping = aes(x = hours, y = mims, color = sex), se = FALSE) + 
+  facet_wrap(~education, ncol = 1) + 
   theme_minimal() + 
   labs(
-    x = "Minutes of Day (0 is Midnight, 1440 is 11:59pm)",
+    x = "Hour of the Day \n(0 is 12:00-12:59am, 1 is 1:00-1:59am, ..., 23 is 23:00-23:59pm)",
     y = "Activity (MIMS)",
-    title = "Total Activity by Sex and Education"
+    title = "Total Activity by Sex and Education Level"
   ) + 
   theme(
     legend.position = "top",
-    legend.title = element_blank()
-  )
+    legend.title = element_blank(),
+    legend.box.spacing = unit(0, "pt"),
+    plot.title = element_text(margin = margin(t = 5, b = -2, unit = "pt"))
+  ) + 
+  scale_x_continuous(
+    breaks = seq(0, 23, 1),
+    expand = c(0, 0)
+    ) + 
+  coord_cartesian(ylim = c(0, 40))
 ```
 
-Add description. Fix x-axis
+This exhibit illustrates 24-hour activity time courses by sex and education level. While the activity data are by minute, the x-axis was labeled by hour as hour of the day was thought to be more interpretable minute of the day. One other important design consideration was trunctating the y-axis to between 0 and 40 to improve readability. Although the smooth curves were generating using all data, 310 activity observations had MIMS greater than 40 and are not pictured. 
+
+There are a couple interesting observations. First, the 24-hour activity time course is similar by sex and education, peaking during daytime versus bottoming out during nighttime. Second, there appears to be slight differences in 24-hour activity course between males and females within each education level, and those differences vary among education levels. For example, among participants completing less than high school, males tend to be more activity at night and in the early morning, with males and females being similar for the rest of the day. In contrast, among participants completing more than high school, males and females are similar at night and in the early morning, but females are more active consistently through the rest of the day. 
 
 # Problem 3
 ##### Files contain 1% of all rides with a total duration less than 4 hours in each of four months. Import, clean, and tidy these data, and describe the resulting dataset.
