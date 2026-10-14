@@ -63,10 +63,11 @@ ny_noaa_clean |>
          !is.na(tmax)) |> 
   group_by(id, month, year) |> 
   summarize(tmax_avg = mean(tmax, na.rm = TRUE)) |>
-  mutate(month = case_when(
-    month == 1 ~ "January",
-    month == 7 ~ "July"
-    )) |> 
+  mutate(
+    month = case_when(
+      month == 1 ~ "January",
+      month == 7 ~ "July")
+    ) |> 
   ggplot() + 
   geom_boxplot(mapping = aes(x = year, y = tmax_avg, group = year)) + 
   facet_grid(~month) + 
@@ -93,10 +94,11 @@ tmax_tmin = ny_noaa_clean |>
     values_to = "temperature"
     ) |> 
   filter(!is.na(temperature)) |> 
-  mutate(measurement = case_when(
-    measurement == "min" ~ "Minimum \n Temperature",
-    measurement == "max" ~ "Maximum \n Temperature"
-    )) |> 
+  mutate(
+    measurement = case_when(
+      measurement == "min" ~ "Minimum \n Temperature",
+      measurement == "max" ~ "Maximum \n Temperature")
+    ) |> 
   ggplot() + 
   geom_boxplot(mapping = aes(y = measurement, x = temperature)) + 
   theme_minimal() +
@@ -149,7 +151,7 @@ nhanes_covar <- read_csv("Data/nhanes_covar.csv", skip = 4) |>
   filter(age >= 21, 
          !is.na(bmi),
          !is.na(education)
-         )
+    )
 
 nhanes_accel <- read_csv("Data/nhanes_accel.csv") |>
   janitor::clean_names() |> 
@@ -158,14 +160,14 @@ nhanes_accel <- read_csv("Data/nhanes_accel.csv") |>
     names_to = "minute",
     names_prefix = "min",
     values_to = "mims"
-  ) |> 
+    ) |> 
   mutate(minute = as.numeric(minute))
 
 nhanes <- inner_join(nhanes_accel, nhanes_covar, by = "seqn") |> 
   relocate(seqn, sex, age, bmi, education)
 ```
 
-The clean dataset from the NHANES study combines demographic and accelerometer data for `r length(unique(pull(nhanes, seqn)))` participants. Demographic variables include sex (male, female), age, (years), body mass index, and education level (less than high school, high school equivalent, and more than high school). The accelerometer data are Monitor-Independent Movement Summary unit (MIMS) in each minute of a 24-hour day beginning 12:00am. The `r length(unique(pull(nhanes, seqn)))` participants have `r nrow(nhanes)` MIMS observations. An important step in data cleaning included removing participants younger than 21 or for whom demographic data was missing; only BMI and education level had missingness among demographic variables. 
+The clean and tidy dataset from the NHANES study combines demographic and accelerometer data for `r length(unique(pull(nhanes, seqn)))` participants. Demographic variables include sex (male, female), age, (years), body mass index, and education level (less than high school, high school equivalent, and more than high school). The accelerometer data are Monitor-Independent Movement Summary unit (MIMS) in each minute of a 24-hour day beginning 12:00am. The `r length(unique(pull(nhanes, seqn)))` participants have `r nrow(nhanes)` MIMS observations. An important step in data cleaning included removing participants younger than 21 or for whom demographic data was missing; only BMI and education level had missingness among demographic variables. 
 
 ##### Produce a reader-friendly table for the number of men and women in each education category, and create a visualization of the age distributions for men and women in each education category. Comment on these items.
 ```{r, message = FALSE}
@@ -175,7 +177,7 @@ nhanes |>
   group_by(sex, education) |>
   summarize(
     count = n()
-  ) |> 
+    ) |> 
   knitr::kable(col.names = c("Sex", "Education Level", "Count"))
 
 nhanes |> 
@@ -189,7 +191,7 @@ nhanes |>
     x = "Age (Years)",
     y = "Sex",
     title = "Distribution of Age by Sex and Education Level"
-  )
+    )
 ```
 
 These exhibits provide the number of participants and their age distribution by sex and education level. Among males, 27 completed less than high school, 35 completed high school or an equivalent, and 56 completed more than high school. Among females, 28 completed less than high school, 23 completed high school or an equivalent, and 59 completed more than high school. Therefore, the most common education was completing more than high school among males and females, comprising approximately one-half of participants of each sex, with the other two education levels comprising approximately one-fourth of participants of each sex. The boxplot visualizes the distribution of age by sex and education. For participants completing less than high school or more than high school, the distribution of age by sex was similar. In contrast, for participants completing high school or an equivalent, the distribution of age was lower for males than females.
@@ -208,11 +210,11 @@ nhanes |>
     x = "Age (Years)",
     y = "Total Activity (MIMS)",
     title = "Total Activity by Sex and Education Level"
-  ) + 
+    ) + 
   theme(
     legend.position = "top",
     legend.title = element_blank()
-  )
+    )
 ```
 
 This exhibit illustrates the total activity of participants by sex and education level. For each sex and education level, there is a downward trend for total activity with greater age, which is expected considering the effects of aging on mobility. The trajectory of the downward trend varies considerably by sex and education level. For example, the trend is most consistently negative for participants who completed less than high school. Furthermore, the downward trends do not monotonically decrease, with total activity markedly increasing before eventually decreasing for participants who completed high school or an equivalent, especially among females. 
@@ -251,13 +253,127 @@ There are a couple interesting observations. First, the 24-hour activity time co
 
 # Problem 3
 ##### Files contain 1% of all rides with a total duration less than 4 hours in each of four months. Import, clean, and tidy these data, and describe the resulting dataset.
+```{r, message = FALSE}
+citi_jan_2020 <- read_csv("Data/Jan 2020 Citi.csv") |>
+  janitor::clean_names() |> 
+  mutate(month_year = "January 2020") |> 
+  relocate(month_year)
+citi_jan_2024 <- read_csv("Data/Jan 2024 Citi.csv") |>
+  janitor::clean_names() |> 
+  mutate(month_year = "January 2024") |> 
+  relocate(month_year)
+citi_july_2020 <- read_csv("Data/July 2020 Citi.csv") |>
+  janitor::clean_names() |> 
+  mutate(month_year = "July 2020") |> 
+  relocate(month_year)
+citi_july_2024 <- read_csv("Data/July 2024 Citi.csv") |>
+  janitor::clean_names() |> 
+  mutate(month_year = "July 2024") |> 
+  relocate(month_year)
+
+citi <- bind_rows(citi_jan_2020, citi_jan_2024, citi_july_2020, citi_july_2024)
+```
+
+The clean and tidy dataset includes 1% of all rides with a total duration less than 4 hours in January 2020, January 2024, July 2020, and July 2024. 
 
 ##### Produce a reader-friendly table showing the total number of rides in each combination of year and month separating casual riders and Citi Bike members. Comment on these results.
+```{r, message = FALSE}
+citi |> 
+  mutate(
+    member_casual = case_when(
+      member_casual == "member" ~ "Citi Bike Member",
+      member_casual == "casual" ~ "Casual Rider"
+      )
+    ) |> 
+  group_by(month_year, member_casual) |> 
+  summarize(count = n()) |> 
+  knitr::kable(col.names = c("Month, Year", "Member Type", "Number of Riders"))
+```
+
+Add description 
 
 ##### Make a table showing the 5 most popular starting stations for July 2024; include the number of rides originating from these stations.
+```{r, message = FALSE}
+citi |> 
+  filter(month_year == "July 2024") |> 
+  group_by(start_station_name) |> 
+  summarize(count = n()) |> 
+  arrange(desc(count)) |> 
+  slice_max(count, n = 5) |> 
+  knitr::kable(col.names = c("Starting Station", "Number of Rides"))
+```
 
 ##### Make a plot to investigate the effects of day of the week, month, and year on median ride duration. This plot can include one or more panels, but should facilitate comparison across all variables of interest. Comment on your observations from this plot.
+```{r, message = FALSE}
+citi |> 
+  mutate(
+    month = case_when(
+      month_year == "January 2020" ~ "January",
+      month_year == "January 2024" ~ "January",
+      month_year == "July 2020" ~ "July",
+      month_year == "July 2024" ~ "July"
+      ),
+    year = case_when(
+      month_year == "January 2020" ~ "2020",
+      month_year == "January 2024" ~ "2024",
+      month_year == "July 2020" ~ "2020",
+      month_year == "July 2024" ~ "2024"
+      ),
+    weekdays = factor(weekdays, 
+                      levels = c("Monday", "Tuesday", "Wednesday",
+                                 "Thursday", "Friday", "Saturday", 
+                                 "Sunday")
+                      )
+    ) |>
+  group_by(year, month, weekdays) |> 
+  summarize(duration_median = median(duration)) |> 
+  ggplot() + 
+  geom_col(mapping = aes(x = weekdays, y = duration_median, fill = year), position = "dodge") + 
+  facet_grid(. ~ month) + 
+   theme_minimal() + 
+  labs(
+    x = "Day of Week",
+    y = "Median Ride Duration (Minutes)",
+    title = "Median Ride Duration During Weekdays in January and July, 2020 versus 2024"
+    ) + 
+  theme(
+    legend.position = "top",
+    legend.title = element_blank()
+    ) 
+```
 
-There were relatively few electric Citi Bikes in 2020, but many more are available now. For data in 2024, make a figure that shows the impact of month, membership status, and bike type on the distribution of ride duration. Comment on your results.
+Add description 
 
+##### There were relatively few electric Citi Bikes in 2020, but many more are available now. For data in 2024, make a figure that shows the impact of month, membership status, and bike type on the distribution of ride duration. Comment on your results.
+```{r}
+citi |> 
+  filter(month_year == "January 2024" | month_year == "July 2024") |> 
+  mutate(
+    month = case_when(
+      month_year == "January 2024" ~ "January",
+      month_year == "July 2024" ~ "July"
+    ),
+    member_casual = case_when(
+      member_casual == "member" ~ "Citi Bike Member",
+      member_casual == "casual" ~ "Casual Rider"
+    ),
+    rideable_type = case_when(
+      rideable_type == "classic_bike" ~ "Classic Bike",
+      rideable_type == "electric_bike" ~ "Electric Bike")
+    ) |>
+  ggplot() + 
+  geom_density(mapping = aes(x = duration, fill = rideable_type), alpha = 0.25) + 
+  facet_grid(member_casual ~ month, switch = "y") + 
+   theme_minimal() + 
+  labs(
+    x = "Duration",
+    y = "Number of Rides",
+    title = "tbd"
+    ) + 
+  theme(
+    legend.position = "top",
+    legend.title = element_blank(),
+  ) 
+```
 
+Add description
